@@ -122,12 +122,12 @@ calculate_version_num()
 	README=https://raw.github.com/${GH_ACCOUNT}/${GH_PROJECT}/${GH_BRANCH}/readme.txt
 	TMPFILE=$(mktemp)
 	wget --quiet -O $TMPFILE $README  || error_exit
-	VERSION=$(grep xrdp $TMPFILE | head -1 | cut -d " " -f2)
-	if [ "$(echo $VERSION | cut -c1)" != 'v' ]; then
-		VERSION=${VERSION}.git${GH_COMMIT}
+	XRDPVER=$(grep xrdp $TMPFILE | head -1 | cut -d " " -f2)
+	if [ "$(echo $XRDPVER| cut -c1)" != 'v' ]; then
+		XRDPVER=${XRDPVER}.git${GH_COMMIT}
 	fi
 	rm -f $TMPFILE
-	echo $VERSION
+	echo $XRDPVER
 }
 
 generate_spec()
@@ -140,7 +140,7 @@ generate_spec()
 	for f in SPECS/*.spec.in
 	do
 		sed \
-		-e "s/%%XRDPVER%%/${VERSION}/g" \
+		-e "s/%%XRDPVER%%/${XRDPVER}/g" \
 		-e "s/%%XRDPBRANCH%%/${GH_BRANCH//-/_}/g" \
 		-e "s/%%GH_ACCOUNT%%/${GH_ACCOUNT}/g" \
 		-e "s/%%GH_PROJECT%%/${GH_PROJECT}/g" \
@@ -170,11 +170,12 @@ fetch()
 	WRKSRC=${GH_ACCOUNT}-${GH_PROJECT}-${GH_COMMIT}
 	DISTFILE=${WRKSRC}.tar.gz
 	echo -n 'Fetching source code... '
+	
 	if [ ! -f ${SOURCE_DIR}/${DISTFILE} ]; then
-		wget \
-			--quiet \
-			--output-document=${SOURCE_DIR}/${DISTFILE} \
-			https://codeload.github.com/${GH_ACCOUNT}/${GH_PROJECT}/legacy.tar.gz/${GH_COMMIT} && \
+		git clone --recursive ${GH_URL} ${WRKDIR}/${WRKSRC} >> $BUILD_LOG 2>&1 && \
+		tar cfz ${WRKDIR}/${DISTFILE} -C ${WRKDIR} ${WRKSRC} && \
+		cp -a ${WRKDIR}/${DISTFILE} ${SOURCE_DIR}/${DISTFILE} || error_exit
+
 		echo 'done'
 	else
 		echo 'already exists'
@@ -374,7 +375,7 @@ install_built_xrdp()
 {
 	[ "$NOINSTALL" = "1" ] && return
 
-	RPM_VERSION_SUFFIX=$(rpm --eval -${VERSION}+${GH_BRANCH//-/_}-1%{?dist}.%{_arch}.rpm)
+	RPM_VERSION_SUFFIX=$(rpm --eval -${XRDPVER}+${GH_BRANCH//-/_}-1%{?dist}.%{_arch}.rpm)
 
 	for f in $TARGETS ; do
 		echo -n "Installing built $f... "
